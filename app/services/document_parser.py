@@ -1,6 +1,6 @@
 from fastapi import HTTPException, UploadFile
 from typing import List
-from io import BytesIO
+from io 
 from bs4 import BeautifulSoup
 from docx import Document
 from pdfminer.high_level import extract_text
@@ -14,47 +14,78 @@ from pydub import AudioSegment
 import httpx
 import mimetypes
 from app.core.config import settings
+from functools import reduce
+import json
 
 logger=logging.getLogger(__name__)
+
+
 
 class DocumentParserService:
     @staticmethod
     async def parse(file: UploadFile):
-        content_type = file.content_type
-        suffix = os.path.splitext(file.filename)[-1]
-        content=await file.read()
-        # Write uploaded file to a temporary file for parsing
-        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-            tmp.write(content)
-            tmp_path = tmp.name
+        content_type = file.content_type or ""
+        suffix = mimetypes.guess_extension(content_type) or ""
+        content = await file.read()
+        tmp_path = None
 
         try:
+            # Write file to temp location
+            with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+                tmp.write(content)
+                tmp_path = tmp.name
+
+            # Default output values
+            output, error, status = "", "", "Success"
+
             match content_type:
                 case "image/png" | "image/jpeg" | "image/webp":
-                    result = await ImageParser.parse(tmp_path)
+                    output = await ImageParser.parse(tmp_path)
                 case "application/pdf":
-                    result = await PDFParser.parse(tmp_path)
+                    output = await PDFParser.parse(tmp_path)
                 case "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-                    result = await DocxParser.parse(tmp_path)
+                    output = await DocxParser.parse(tmp_path)
                 case "text/html":
-                    result = await HTMLParser.parse(tmp_path)
+                    output = await HTMLParser.parse(tmp_path)
                 case "text/plain" | "text/markdown":
-                    result = await TextParser.parse(tmp_path)
-                case  "audio/flac" | "audio/mpeg"| "audio/mp3"|"audio/m4a"|"audio/x-m4a"|"audio/ogg"|"audio/wav"|"audio/x-wav"|"audio/webm":
-                    result = await AudioParser.parse(content,content_type)
+                    output = await TextParser.parse(tmp_path)
+                case content_type if content_type in {
+                    "audio/flac", "audio/mpeg", "audio/mp3", "audio/m4a",
+                    "audio/x-m4a", "audio/ogg", "audio/wav",
+                    "audio/x-wav", "audio/webm"
+                }:
+                    output = await AudioParser.parse(content, content_type)
                 case _:
-                    raise ValueError(f"Unsupported file type: {content_type}")
+                    status = "Failed"
+                    error = f"Unsupported file type: {content_type}"
+                    output = ""
+        except Exception as e:
+            status = "Failed"
+            error = str(e)
+            output = ""
         finally:
-            os.remove(tmp_path)
+            if tmp_path and os.path.exists(tmp_path):
+                os.remove(tmp_path)
 
-        return result
+        return {
+            "file_name": file.filename,
+            "status": status,
+            "error": error,
+            "text": output
+        }
+        
 
     @staticmethod
     async def parse_multiple(files: List[UploadFile]):
-        results = []
         for file in files:
-            results.append(await DocumentParserService.parse(file))
-        return results
+            result= await DocumentParserService.parse(file)
+            yield (json.dumps(result) + "\n").encode("utf-8")
+        yield json.dumps({
+            "file_name": "",
+            "status": "Finished",
+            "error": "",
+            "text": ""
+            }).encode("utf-8")
 
 
 class TextParser:
@@ -62,14 +93,14 @@ class TextParser:
     async def parse(path: str):
         with open(path, "r", encoding="utf-8", errors="ignore") as f:
             text = f.read()
-        return {"text": text, "images": []}
+        return  text
 
 
 class PDFParser:
     @staticmethod
     async def parse(path: str):
         text = extract_text(path)
-        return {"text": text, "images": []}
+        return  text
 
 
 class DocxParser:
@@ -77,8 +108,7 @@ class DocxParser:
     async def parse(path: str):
         doc = Document(path)
         text = "\n".join([p.text for p in doc.paragraphs])
-        return {"text": text, "images": []}
-
+        return text
 
 class HTMLParser:
     @staticmethod
@@ -87,8 +117,8 @@ class HTMLParser:
             html = f.read()
         soup = BeautifulSoup(html, "html.parser")
         text = soup.get_text(separator="\n", strip=True)
-        images = [img.get("src") for img in soup.find_all("img") if img.get("src")]
-        return {"text": text, "images": images}
+
+        return text
 
 
 class ImageParser:
@@ -97,7 +127,7 @@ class ImageParser:
         try:
             image=Image.open(path)
             text=pytesseract.image_to_string(image)
-            return {"image":str(text)} 
+            return str(text)
         except Exception as e:
             logger.warning(f"image failed to parse: {e}")
 
@@ -124,8 +154,4 @@ class AudioParser:
             raise HTTPException(status_code=response.status_code, detail=response.text)
 
         data = response.json()
-        return {
-            "text": data.get("text"),
-            "duration_min": round(duration_min, 2),
-            "language": data.get("language", "unknown")
-        }
+        return data.get("text")
