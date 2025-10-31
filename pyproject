@@ -1,0 +1,25 @@
+[project]
+name = "rag"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "django>=5.2.7",
+    "django-cors-headers>=4.9.0",
+    "django-stubs>=5.2.7",
+    "djangorestframework>=3.16.1",
+    "djangorestframework-stubs>=3.16.5",
+    "dotenv>=0.9.9",
+    "poethepoet>=0.37.0",
+    "sqlalchemy>=2.0.44",
+    "uvicorn>=0.38.0",
+]
+
+
+[tool.poe.tasks]
+make = "./rag/manage.py makemigrations"
+migrate = "./rag/manage.py migrate"
+run = "./rag/manage.py runserver"
+srun = "doppler run -- uvicorn social.asgi:application --reload --port 8001 --app-dir ./rag/ "
+shell = "./rag/manage.py shell"

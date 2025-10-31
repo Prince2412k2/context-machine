@@ -1,0 +1,18 @@
+[project]
+name = "context-machine"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "asyncpg>=0.30.0",
+    "dotenv>=0.9.9",
+    "fastapi[standard]>=0.120.3",
+    "httpx>=0.28.1",
+    "poethepoet>=0.37.0",
+    "sqlalchemy>=2.0.44",
+]
+
+
+[tool.poe.tasks]
+srun = "uvicorn social.asgi:application --reload --port 8001 --app-dir ./rag/ "
