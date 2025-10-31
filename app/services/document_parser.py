@@ -1,4 +1,4 @@
-from fastapi import UploadFile
+from fastapi import HTTPException, UploadFile
 from typing import List
 from io import BytesIO
 from bs4 import BeautifulSoup
@@ -9,6 +9,12 @@ import os
 from PIL import Image
 import pytesseract
 import logging
+import io
+from pydub import AudioSegment
+import httpx
+import mimetypes
+from app.core.config import settings
+
 logger=logging.getLogger(__name__)
 
 class DocumentParserService:
@@ -16,10 +22,10 @@ class DocumentParserService:
     async def parse(file: UploadFile):
         content_type = file.content_type
         suffix = os.path.splitext(file.filename)[-1]
-        
+        content=await file.read()
         # Write uploaded file to a temporary file for parsing
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-            tmp.write(await file.read())
+            tmp.write(content)
             tmp_path = tmp.name
 
         try:
@@ -34,6 +40,8 @@ class DocumentParserService:
                     result = await HTMLParser.parse(tmp_path)
                 case "text/plain" | "text/markdown":
                     result = await TextParser.parse(tmp_path)
+                case  "audio/flac" | "audio/mpeg"| "audio/mp3"|"audio/m4a"|"audio/x-m4a"|"audio/ogg"|"audio/wav"|"audio/x-wav"|"audio/webm":
+                    result = await AudioParser.parse(content,content_type)
                 case _:
                     raise ValueError(f"Unsupported file type: {content_type}")
         finally:
@@ -92,3 +100,32 @@ class ImageParser:
             return {"image":str(text)} 
         except Exception as e:
             logger.warning(f"image failed to parse: {e}")
+
+class AudioParser:
+    @staticmethod
+    async def parse(file:bytes,file_type:str):
+        size=len(file)/(1024*1024)
+        if size> settings.MAX_AUDIO_SIZE_MB:
+            raise HTTPException(status_code=400,detail=f"File too large : file should be less than {settings.MAX_AUDIO_SIZE_MB} MB")
+        audio=AudioSegment.from_file(io.BytesIO(file))
+        duration_sec = len(audio) / 1000
+        duration_min = duration_sec / 60
+        if duration_min > settings.MAX_AUDIO_DURATION_MIN:
+            raise HTTPException(status_code=400, detail=f"Audio too long: audio should be less than {settings.MAX_AUDIO_DURATION_MIN} min")
+        
+        ext = mimetypes.guess_extension(file_type) or ".wav"
+        async with httpx.AsyncClient(timeout=None) as client:
+            form = {"model": "whisper-large-v3-turbo"}
+            files = {"file": (f"audio{ext}",file, file_type)}
+            headers = {"Authorization": f"Bearer {settings.GROQ_API}"}
+            response = await client.post(settings.GROQ_TRANSCRIPTION_URL, data=form, files=files, headers=headers)
+
+        if response.status_code != 200:
+            raise HTTPException(status_code=response.status_code, detail=response.text)
+
+        data = response.json()
+        return {
+            "text": data.get("text"),
+            "duration_min": round(duration_min, 2),
+            "language": data.get("language", "unknown")
+        }

@@ -17,6 +17,7 @@ dependencies = [
     "psycopg[binary]>=3.2.12",
     "pydantic>=2.12.3",
     "pydantic-settings>=2.11.0",
+    "pydub>=0.25.1",
     "python-docx>=1.2.0",
     "python-dotenv>=1.2.1",
     "sqlalchemy[asyncio]>=2.0.44",
