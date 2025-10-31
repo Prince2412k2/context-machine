@@ -1,6 +1,6 @@
 from fastapi import HTTPException, UploadFile
 from typing import List
-from io 
+import io 
 from bs4 import BeautifulSoup
 from docx import Document
 from pdfminer.high_level import extract_text
@@ -14,7 +14,6 @@ from pydub import AudioSegment
 import httpx
 import mimetypes
 from app.core.config import settings
-from functools import reduce
 import json
 
 logger=logging.getLogger(__name__)
