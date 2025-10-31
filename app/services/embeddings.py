@@ -1,16 +1,16 @@
 from typing import List
-from app.core.embedding import embed_model
+from app.core.embedding import get_embbed
 from sqlalchemy.ext.asyncio import AsyncSession
 
 class EmbeddingService:
     @staticmethod
     def embbed_doc(chunks:List[str]):
         """ returns Vectors of 384 dimensions """
-        return embed_model.embed(chunks)
+        return get_embbed().embed(chunks)
     
     @staticmethod
     def embbed_string(query:str):
-        return list(embed_model.embed([query]))[0]
+        return list(get_embbed().embed([query]))[0].tolist()
 
 class QueryService:
     

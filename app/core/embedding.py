@@ -1,10 +1,29 @@
 from fastembed import TextEmbedding
+from asyncio import Lock
 
-
-embed_model=None
-def init_embedding_model():
-    global embed_model
-    if embed_model is None:
-        embed_model = TextEmbedding(model_name="BAAI/bge-small-en-v1.5")
-    return embed_model
+class EmbbedModel:
+    _instance = None
+    _lock = Lock()
+    def __init__(self) -> None:
+        self.embed_model=None
+        
+    def init(self):
+        if self.embed_model is None:
+            self.embed_model = TextEmbedding(model_name="BAAI/bge-small-en-v1.5")
    
+    @classmethod
+    async def get_instance(cls):
+        if cls._instance is None:
+            async with cls._lock:
+                if cls._instance is None:
+                    instance = super().__new__(cls)
+                    instance.model = TextEmbedding()
+                    cls._instance = instance
+        return cls._instance
+
+embbed_model=EmbbedModel()
+
+def get_embbed()->TextEmbedding:
+    if embbed_model.embed_model is None:
+        print("that thing is not inited")
+    return embbed_model.embed_model
