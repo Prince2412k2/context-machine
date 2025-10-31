@@ -5,14 +5,23 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "alembic>=1.17.1",
     "asyncpg>=0.30.0",
+    "beautifulsoup4>=4.14.2",
     "dotenv>=0.9.9",
     "fastapi[standard]>=0.120.3",
     "httpx>=0.28.1",
+    "pdfminer-six>=20250506",
     "poethepoet>=0.37.0",
-    "sqlalchemy>=2.0.44",
+    "psycopg2>=2.9.11",
+    "psycopg[binary]>=3.2.12",
+    "pydantic>=2.12.3",
+    "pydantic-settings>=2.11.0",
+    "python-docx>=1.2.0",
+    "python-dotenv>=1.2.1",
+    "sqlalchemy[asyncio]>=2.0.44",
 ]
 
 
 [tool.poe.tasks]
-srun = "uvicorn social.asgi:application --reload --port 8001 --app-dir ./rag/ "
+run = "uvicorn app.main:app --reload"
