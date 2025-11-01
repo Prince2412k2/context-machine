@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.orm import sessionmaker
 from app.core.config import settings
 from app.models import Base, Document, Chunk
 
